@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>CleanTracker Web</title>
+  <link rel="stylesheet" href="styles.css" />
+  <meta name="color-scheme" content="dark light">
+  <style>
+    /* Fallback minimal styling if styles.css fails to load */
+    body{margin:0;background:#000;color:#fff;font-family:ui-sans-serif,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  </style>
+  
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+</head>
+<body>
+  <div id="app">
+    <div class="preview">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="overlay"></canvas>
+    </div>
+
+    <div class="controls">
+      <div class="segmented" role="tablist" aria-label="Exercise mode">
+        <button id="modeClean" class="segmented-btn is-active" role="tab" aria-selected="true">Clean</button>
+        <button id="modeSquat" class="segmented-btn" role="tab" aria-selected="false">Squat</button>
+      </div>
+      <button id="switchBtn" type="button" class="pill">Switch Camera</button>
+      <label class="control-item pill"><input id="mirror" type="checkbox" checked /> Mirror</label>
+    </div>
+
+    <div id="error" role="alert"></div>
+  </div>
+
+  <div class="hud">
+    <div class="hud-row">
+      <span id="reps">0</span> reps · <span id="state">Stand</span>
+    </div>
+    <div id="feedback" class="hud-row"></div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+  
+  <noscript>
+    <div style="position:fixed;inset:0;display:grid;place-items:center;background:#000;color:#fff;">
+      <p>This app requires JavaScript to access your camera.</p>
+    </div>
+  </noscript>
+</body>
+</html>
+

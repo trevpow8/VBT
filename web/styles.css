@@ -1,0 +1,70 @@
+:root { color-scheme: dark; }
+html, body, #app { height: 100%; margin: 0; background: #000; }
+
+.preview {
+  position: relative;
+  width: 100%;
+  height: calc(100% - 64px);
+  background: #000;
+}
+
+video, canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+canvas { pointer-events: none; }
+
+.controls {
+  position: fixed;
+  left: 0; right: 0; bottom: max(12px, env(safe-area-inset-bottom));
+  display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;
+  z-index: 10;
+}
+
+.controls button, .controls label {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-family: ui-sans-serif, -apple-system, Segoe UI, Roboto, sans-serif;
+  backdrop-filter: blur(6px);
+}
+
+.pill { border-radius: 999px; }
+
+.segmented { display: inline-flex; border: 1px solid rgba(255,255,255,0.16); border-radius: 999px; overflow: hidden; }
+.segmented-btn {
+  background: rgba(255,255,255,0.06);
+  color: #fff; border: none; padding: 8px 14px;
+}
+.segmented-btn.is-active { background: rgba(0,0,0,0.5); }
+
+.mirrored { transform: scaleX(-1); }
+
+#error {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+  background: rgba(255, 0, 0, 0.18); padding: 8px 12px; border-radius: 8px;
+  font-family: ui-sans-serif, -apple-system, Segoe UI, Roboto, sans-serif;
+  color: #fff; border: 1px solid rgba(255,0,0,0.25);
+  z-index: 20;
+}
+
+.hud {
+  position: fixed; top: env(safe-area-inset-top, 12px); left: 12px; right: 12px;
+  display: grid; gap: 6px; z-index: 15;
+  pointer-events: none;
+}
+.hud-row {
+  width: fit-content; max-width: 100%;
+  background: rgba(0,0,0,0.45);
+  color: #fff; border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 10px; padding: 6px 10px;
+  font-family: ui-sans-serif, -apple-system, Segoe UI, Roboto, sans-serif;
+  backdrop-filter: blur(6px);
+}
+
