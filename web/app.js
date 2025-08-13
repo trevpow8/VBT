@@ -10,6 +10,7 @@ const switchBtn = document.getElementById('switchBtn');
 const mirrorCb = document.getElementById('mirror');
 const modeCleanBtn = document.getElementById('modeClean');
 const modeSquatBtn = document.getElementById('modeSquat');
+const resetBtn = document.getElementById('resetBtn');
 const errorEl = document.getElementById('error');
 const repsEl = document.getElementById('reps');
 const stateEl = document.getElementById('state');
@@ -18,7 +19,9 @@ const feedbackEl = document.getElementById('feedback');
 
 let reps = 0;
 let phase = 'Stand';
-let mode = 'clean'; // 'clean' | 'squat'
+let mode = 'clean'; 
+let lastRepTimestamp = 0;
+const REP_COOLDOWN_MS = 1200;
 
 async function loadModel() {
   const fileset = await FilesetResolver.forVisionTasks(
@@ -73,7 +76,7 @@ function drawLoop() {
     rafId = requestAnimationFrame(frame);
     if (!poseLandmarker) return;
 
-    if (lastVideoTime === video.currentTime) return; // avoid duplicate inference
+    if (lastVideoTime === video.currentTime) return; 
     lastVideoTime = video.currentTime;
 
     ctx.clearRect(0, 0, w, h);
@@ -82,7 +85,7 @@ function drawLoop() {
     const pose = result?.landmarks?.[0];
 
     if (pose) {
-      // Draw landmarks and skeleton
+      
       drawingUtils.drawLandmarks(pose, { lineWidth: 2, color: '#00FF88', radius: 3 });
       const connections = PoseLandmarker.POSE_CONNECTIONS || [];
       if (connections.length) {
@@ -107,7 +110,7 @@ function drawLoop() {
           drawAngleBadge(knee, depth, w, h);
         }
       } else {
-        // Clean mode (very simple heuristics):
+        // Clean mode with simple finite-state and cooldown to avoid double counts
         const shoulder = pose[12], elbow = pose[14], wrist = pose[16];
         const hip = pose[24], knee = pose[26];
         if (shoulder && elbow && wrist && hip && knee) {
@@ -116,16 +119,23 @@ function drawLoop() {
 
           // Phase transitions
           if (phase === 'Stand' && hipKneeDeg < 150) phase = 'Pull';
-          if (phase === 'Pull' && elbowDeg < 60) { reps += 1; phase = 'Stand'; }
+          if (phase === 'Pull' && elbowDeg < 65) phase = 'Rack';
+          if (phase === 'Rack' && hipKneeDeg > 165 && elbowDeg > 140) {
+            const now = performance.now();
+            if (now - lastRepTimestamp > REP_COOLDOWN_MS) {
+              reps += 1;
+              lastRepTimestamp = now;
+            }
+            phase = 'Stand';
+          }
 
-          if (elbowDeg >= 60) feedbacks.push('Drive elbows through');
-          if (hipKneeDeg < 140) feedbacks.push('Extend hips/knees');
+          if (elbowDeg >= 65 && phase !== 'Stand') feedbacks.push('Drive elbows through');
+          if (hipKneeDeg < 145 && phase !== 'Rack') feedbacks.push('Extend hips/knees');
 
           drawAngleBadge(elbow, elbowDeg, w, h);
         }
       }
 
-      // HUD update
       repsEl.textContent = String(reps);
       stateEl.textContent = phase;
       feedbackEl.textContent = feedbacks.join(' · ');
@@ -135,7 +145,6 @@ function drawLoop() {
 }
 
 function computeAngle(a, b, c) {
-  // angle ABC in degrees
   const ab = { x: a.x - b.x, y: a.y - b.y };
   const cb = { x: c.x - b.x, y: c.y - b.y };
   const dot = ab.x * cb.x + ab.y * cb.y;
@@ -195,5 +204,15 @@ window.addEventListener('resize', resizeCanvas);
 if (modeCleanBtn && modeSquatBtn) {
   modeCleanBtn.addEventListener('click', () => setMode('clean'));
   modeSquatBtn.addEventListener('click', () => setMode('squat'));
+}
+
+if (resetBtn) {
+  resetBtn.addEventListener('click', () => {
+    reps = 0;
+    phase = 'Stand';
+    lastRepTimestamp = 0;
+    repsEl.textContent = '0';
+    stateEl.textContent = phase;
+  });
 }
 
