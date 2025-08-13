@@ -1,6 +1,6 @@
 import { FilesetResolver, PoseLandmarker, DrawingUtils } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3';
 
-let facingMode = 'environment'; // start with back camera for exercise
+let facingMode = 'environment'; 
 let stream, rafId, poseLandmarker, lastVideoTime = -1;
 
 const video = document.getElementById('video');
@@ -15,6 +15,7 @@ const errorEl = document.getElementById('error');
 const repsEl = document.getElementById('reps');
 const stateEl = document.getElementById('state');
 const feedbackEl = document.getElementById('feedback');
+const velStatsEl = document.getElementById('velStats');
 
 
 let reps = 0;
@@ -22,6 +23,22 @@ let phase = 'Stand';
 let mode = 'clean'; 
 let lastRepTimestamp = 0;
 const REP_COOLDOWN_MS = 1200;
+
+
+let lastWristY = null; 
+let lastVelTs = 0;
+let smoothedUpVelPxps = 0; 
+let peakUpVelThisRep = 0; 
+let lastRepPeakUpVel = 0; 
+
+
+const ASSUMED_BODY_HEIGHT_M = 1.70;
+const THRESHOLD_MPS = 1.2;
+const FLASH_MS = 200;
+let currentMetersPerPixel = null; 
+let lastRepPeakUpVelMps = 0; 
+let flashColor = null; 
+let flashUntilMs = 0;
 
 async function loadModel() {
   const fileset = await FilesetResolver.forVisionTasks(
@@ -81,11 +98,23 @@ function drawLoop() {
 
     ctx.clearRect(0, 0, w, h);
 
-    const result = poseLandmarker.detectForVideo(video, performance.now());
+    const nowMs = performance.now();
+    const result = poseLandmarker.detectForVideo(video, nowMs);
     const pose = result?.landmarks?.[0];
 
     if (pose) {
-      
+      if (pose && pose.length) {
+        let minY = 1, maxY = 0;
+        for (let i = 0; i < pose.length; i++) {
+          const p = pose[i];
+          if (!p) continue;
+          if (p.y < minY) minY = p.y;
+          if (p.y > maxY) maxY = p.y;
+        }
+        const pixelHeight = Math.max(1, (maxY - minY) * h);
+        currentMetersPerPixel = ASSUMED_BODY_HEIGHT_M / pixelHeight;
+      }
+
       drawingUtils.drawLandmarks(pose, { lineWidth: 2, color: '#00FF88', radius: 3 });
       const connections = PoseLandmarker.POSE_CONNECTIONS || [];
       if (connections.length) {
@@ -93,6 +122,23 @@ function drawLoop() {
       }
 
       const feedbacks = [];
+
+      
+      const wristR = pose?.[16] || null;
+      const wristL = pose?.[15] || null;
+      const wrist = wristR || wristL;
+      if (wrist) {
+        const y = wrist.y; 
+        if (lastWristY !== null) {
+          const dt = Math.max(1, nowMs - lastVelTs) / 1000; 
+          const vyPxps = (lastWristY - y) * h / dt; 
+          const alpha = 0.3;
+          smoothedUpVelPxps = alpha * vyPxps + (1 - alpha) * smoothedUpVelPxps;
+          if (smoothedUpVelPxps > peakUpVelThisRep) peakUpVelThisRep = smoothedUpVelPxps;
+        }
+        lastWristY = y;
+        lastVelTs = nowMs;
+      }
 
       if (mode === 'squat') {
         const hip = pose[24], knee = pose[26], ankle = pose[28];
@@ -110,22 +156,30 @@ function drawLoop() {
           drawAngleBadge(knee, depth, w, h);
         }
       } else {
-        // Clean mode with simple finite-state and cooldown to avoid double counts
+        
         const shoulder = pose[12], elbow = pose[14], wrist = pose[16];
         const hip = pose[24], knee = pose[26];
         if (shoulder && elbow && wrist && hip && knee) {
           const elbowDeg = Math.round(computeAngle(shoulder, elbow, wrist));
           const hipKneeDeg = Math.round(computeAngle(shoulder, hip, knee));
 
-          // Phase transitions
+      
           if (phase === 'Stand' && hipKneeDeg < 150) phase = 'Pull';
           if (phase === 'Pull' && elbowDeg < 65) phase = 'Rack';
           if (phase === 'Rack' && hipKneeDeg > 165 && elbowDeg > 140) {
-            const now = performance.now();
+            const now = nowMs;
             if (now - lastRepTimestamp > REP_COOLDOWN_MS) {
               reps += 1;
               lastRepTimestamp = now;
             }
+            
+            lastRepPeakUpVel = peakUpVelThisRep;
+            lastRepPeakUpVelMps = currentMetersPerPixel ? lastRepPeakUpVel * currentMetersPerPixel : 0;
+            if (lastRepPeakUpVelMps > 0) {
+              flashColor = lastRepPeakUpVelMps >= THRESHOLD_MPS ? 'green' : 'red';
+              flashUntilMs = nowMs + FLASH_MS;
+            }
+            peakUpVelThisRep = 0;
             phase = 'Stand';
           }
 
@@ -139,6 +193,20 @@ function drawLoop() {
       repsEl.textContent = String(reps);
       stateEl.textContent = phase;
       feedbackEl.textContent = feedbacks.join(' · ');
+      if (velStatsEl) {
+        const curr = Math.max(0, smoothedUpVelPxps);
+        const mpsCurr = currentMetersPerPixel ? curr * currentMetersPerPixel : 0;
+        const peakPxps = Math.max(0, lastRepPeakUpVel || peakUpVelThisRep);
+        const peakMps = lastRepPeakUpVelMps || (currentMetersPerPixel ? peakPxps * currentMetersPerPixel : 0);
+        velStatsEl.textContent = `v↑ ${mpsCurr.toFixed(2)} m/s · peak ${peakMps.toFixed(2)} m/s`;
+      }
+
+      if (flashColor && nowMs < flashUntilMs) {
+        ctx.save();
+        ctx.fillStyle = flashColor === 'green' ? 'rgba(0,255,136,0.18)' : 'rgba(255,0,0,0.18)';
+        ctx.fillRect(0, 0, w, h);
+        ctx.restore();
+      }
     }
   }
   frame();
