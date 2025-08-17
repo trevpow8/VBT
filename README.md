@@ -1,5 +1,5 @@
 # VBT
-
+https://vbt-trevpow8s-projects.vercel.app/
 A lightweight, in-browser velocity-based training (VBT) prototype for Olympic lifts and squats using real-time pose estimation. Runs entirely client-side in the browser using MediaPipe Tasks (no backend).
 
 ## What we're trying to do
